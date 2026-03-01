@@ -108,35 +108,83 @@ function assignCluster(keyword) {
 }
 
 // ============================================================
-// Google Custom Search API
+// SerpApi — Google Search (with retry + rate-limit handling)
 // ============================================================
-async function fetchResults(keyword, apiKey, cseId) {
-  const url = new URL('https://www.googleapis.com/customsearch/v1');
-  url.searchParams.set('key', apiKey);
-  url.searchParams.set('cx',  cseId);
-  url.searchParams.set('q',   keyword);
-  url.searchParams.set('num', '10');
+const MAX_RETRIES    = 3;
+const INITIAL_BACKOFF_MS = 1000; // doubles each retry: 1s, 2s, 4s
 
-  const res = await fetch(url.toString());
+async function fetchResults(keyword, apiKey) {
+  const url = new URL('https://serpapi.com/search');
+  url.searchParams.set('engine',  'google');
+  url.searchParams.set('q',       keyword);
+  url.searchParams.set('api_key', apiKey);
+  url.searchParams.set('num',     '10');
+  url.searchParams.set('hl',      'en');
+  url.searchParams.set('gl',      'us');
 
-  if (res.status === 429) throw new Error('Rate limited by Google API — try again later');
+  let lastError;
 
-  if (!res.ok) {
-    const body = await res.text();
-    let msg = `HTTP ${res.status}`;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
+      console.log(`    ↻ retry ${attempt}/${MAX_RETRIES} in ${backoff}ms …`);
+      await delay(backoff);
+    }
+
+    let res;
     try {
-      const json = JSON.parse(body);
-      msg = json?.error?.message || msg;
-    } catch { /* ignore */ }
-    throw new Error(msg);
+      res = await fetch(url.toString());
+    } catch (err) {
+      lastError = new Error(`Network error: ${err.message}`);
+      console.log(`    ⚠ Network error: ${err.message}`);
+      continue; // retry on network failures
+    }
+
+    // --- 429 Rate Limited: always retry (with backoff) ---
+    if (res.status === 429) {
+      lastError = new Error('Rate limited (HTTP 429) — too many requests');
+      console.log(`    ⚠ Rate limited (429) — backing off`);
+      continue;
+    }
+
+    // --- 403 Forbidden: bad key or account issue, do NOT retry ---
+    if (res.status === 403) {
+      const body = await res.text();
+      let detail = 'HTTP 403 Forbidden';
+      try { detail = JSON.parse(body)?.error || detail; } catch { /* ignore */ }
+      throw new Error(`Authentication failed (403): ${detail} — check your SERP_API_KEY`);
+    }
+
+    // --- Other non-OK status: retry on 5xx, fail immediately on 4xx ---
+    if (!res.ok) {
+      const body = await res.text();
+      let detail = `HTTP ${res.status}`;
+      try { detail = JSON.parse(body)?.error || detail; } catch { /* ignore */ }
+
+      if (res.status >= 500) {
+        lastError = new Error(`Server error (${res.status}): ${detail}`);
+        console.log(`    ⚠ Server error (${res.status}): ${detail}`);
+        continue; // retry on server errors
+      }
+
+      // 4xx (other than 429/403) — don't retry
+      throw new Error(`Client error (${res.status}): ${detail}`);
+    }
+
+    // --- Success path ---
+    const data = await res.json();
+    if (data.error) throw new Error(`SerpAPI error: ${data.error}`);
+
+    // SerpApi returns organic_results; map to the same shape the analyser expects
+    return (data.organic_results || []).map(r => ({
+      link:    r.link    || '',
+      title:   r.title   || '',
+      snippet: r.snippet || '',
+    }));
   }
 
-  const data = await res.json();
-
-  // API returned an error object with 200 status (quota exhausted etc.)
-  if (data.error) throw new Error(data.error.message);
-
-  return data.items || [];
+  // All retries exhausted
+  throw new Error(`Failed after ${MAX_RETRIES} retries: ${lastError?.message || 'unknown error'}`);
 }
 
 // ============================================================
@@ -335,11 +383,10 @@ function generateMarkdown(analyses, generatedAt) {
 async function main() {
   loadEnv();
 
-  const apiKey = process.env.GOOGLE_API_KEY;
-  const cseId  = process.env.GOOGLE_CSE_ID;
+  const apiKey = process.env.SERP_API_KEY;
 
-  if (!apiKey || !cseId) {
-    console.error('❌  Missing env vars. Set GOOGLE_API_KEY and GOOGLE_CSE_ID.');
+  if (!apiKey) {
+    console.error('❌  Missing env var. Set SERP_API_KEY in .env.');
     console.error('    Copy .env.example to .env and fill in your credentials.');
     process.exit(1);
   }
@@ -370,7 +417,7 @@ async function main() {
     process.stdout.write(`  [${String(i + 1).padStart(2)}/${keywords.length}] "${kw}" … `);
 
     try {
-      const items    = await fetchResults(kw, apiKey, cseId);
+      const items    = await fetchResults(kw, apiKey);
       const analysis = analyzeKeyword(kw, items);
       analyses.push(analysis);
 
