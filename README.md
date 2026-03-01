@@ -5,7 +5,7 @@ A Node.js CLI tool that finds content gap opportunities by analysing Google sear
 ## What it does
 
 For each keyword in `keywords.txt`, it:
-1. Fetches the top 10 Google results via the Custom Search API
+1. Fetches the top 10 Google results via [SerpAPI](https://serpapi.com/)
 2. Identifies whether each result is an authority site or a smaller blog
 3. Measures description length (thin content signal) and title quality
 4. Scores each keyword by opportunity (1–10)
@@ -15,25 +15,16 @@ For each keyword in `keywords.txt`, it:
 ## Requirements
 
 - **Node.js 18+** (for built-in `fetch`)
-- A **Google Cloud API key** with the Custom Search API enabled
-- A **Google Programmable Search Engine** ID configured to search the entire web
+- A **SerpAPI** API key ([serpapi.com](https://serpapi.com/))
 
 ## Setup
 
 ### 1. Get API credentials
 
-**API Key:**
-1. Go to [console.cloud.google.com](https://console.cloud.google.com/apis/credentials)
-2. Create a project → Enable **Custom Search API**
-3. Create credentials → **API Key**
+1. Sign up at [serpapi.com](https://serpapi.com/)
+2. Go to your [dashboard](https://serpapi.com/manage-api-key) and copy your **API key**
 
-**Search Engine ID:**
-1. Go to [programmablesearchengine.google.com](https://programmablesearchengine.google.com/)
-2. Create a new search engine
-3. Under **Sites to search**, choose **Search the entire web**
-4. Copy the **Search engine ID** (looks like `abc123:xyz456`)
-
-> **Free tier:** The Custom Search API allows **100 queries/day** free. Each run of this tool uses 1 query per keyword (10 keywords = 10 queries).
+> **Free tier:** SerpAPI allows **100 searches/month** free. Each run of this tool uses 1 query per keyword (10 keywords = 10 queries).
 
 ### 2. Configure environment
 
@@ -44,8 +35,7 @@ cp .env.example .env
 Edit `.env` and fill in your credentials:
 
 ```
-GOOGLE_API_KEY=AIzaSy...
-GOOGLE_CSE_ID=abc123:xyz456
+SERP_API_KEY=your_serpapi_key_here
 ```
 
 ### 3. Edit keywords
@@ -119,13 +109,13 @@ Scores are calculated per keyword on a 1–10 scale:
 
 ## Adding more keywords
 
-Just add lines to `keywords.txt`. Each line = one API call, so be mindful of your daily quota (100 free/day).
+Just add lines to `keywords.txt`. Each line = one API call, so be mindful of your monthly quota (100 free/month on SerpAPI).
 
 ## Troubleshooting
 
 | Error | Fix |
 |-------|-----|
-| `Missing env vars` | Check `.env` exists and has both keys filled in |
-| `HTTP 403` | API key invalid or Custom Search API not enabled in your project |
-| `HTTP 429` | Daily quota exhausted — wait until midnight Pacific time |
+| `Missing env var` | Check `.env` exists and has `SERP_API_KEY` filled in |
+| `HTTP 403` | API key invalid or account issue — check [serpapi.com/manage-api-key](https://serpapi.com/manage-api-key) |
+| `HTTP 429` | Rate limited — wait a bit or check your plan's monthly quota |
 | `Node.js 18+ required` | Upgrade Node: `nvm install 18 && nvm use 18` |

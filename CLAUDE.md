@@ -6,7 +6,7 @@
 
 ## What This Is
 
-Content gap analysis tool. Fetches top 10 Google results per keyword (via Custom Search API), identifies authority vs small sites, scores keywords 1-10 by opportunity, groups into topic clusters.
+Content gap analysis tool. Fetches top 10 Google results per keyword (via [SerpAPI](https://serpapi.com/)), identifies authority vs small sites, scores keywords 1-10 by opportunity, groups into topic clusters.
 
 ## Usage
 
@@ -20,9 +20,9 @@ Reads keywords from `keywords.txt`, outputs `gap-report.md` and `gap-report.json
 
 - `gap-finder.js` — main script
 - `keywords.txt` — input keywords (one per line)
-- `.env` — Google API key and Search Engine ID
+- `.env` — SerpAPI key (`SERP_API_KEY`)
 - `gap-report.*` — output files
 
 ## API Limits
 
-Free tier: 100 queries/day via Google Custom Search API.
+Free tier: 100 searches/month via SerpAPI.

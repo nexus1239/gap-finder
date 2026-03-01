@@ -1,7 +1,7 @@
 {
   "name": "gap-finder",
   "version": "1.0.0",
-  "description": "CLI tool to find content gap opportunities using Google Custom Search API",
+  "description": "CLI tool to find content gap opportunities using SerpAPI",
   "main": "gap-finder.js",
   "scripts": {
     "start": "node gap-finder.js"
